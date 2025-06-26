@@ -38,30 +38,58 @@ class _ExcursionTabState extends State<ExcursionTab> {
           .toList();
       setState(() {
         _ubicacionesDisponibles = ubicaciones;
+        if (_ubicacionesDisponibles.isNotEmpty) {
+          if (_ubicacion == null || !_ubicacionesDisponibles.contains(_ubicacion)) {
+            _ubicacion = _ubicacionesDisponibles.first;
+          }
+        } else {
+          _ubicacion = null;
+        }
         _loadingUbicaciones = false;
       });
+      if (_ubicacion != null) {
+        _buscarExcursiones();
+      }
     } else {
       setState(() {
         _ubicacionesDisponibles = [];
+        _ubicacion = null;
         _loadingUbicaciones = false;
       });
     }
   }
 
   Future<void> _buscarExcursiones() async {
-    if (_ubicacion == null || _ubicacion!.isEmpty) return; // Prevent null/empty search
+    if (_ubicacion == null || _ubicacion!.isEmpty) return;
     setState(() {
       _loading = true;
       _excursiones = [];
     });
-    final response = await Supabase.instance.client
-        .from('excursiones')
-        .select()
-        .eq('ubicacion', _ubicacion!.trim());
-    setState(() {
-      _excursiones = List<Map<String, dynamic>>.from(response);
-      _loading = false;
-    });
+    try { // Added try block
+      final response = await Supabase.instance.client
+          .from('excursiones')
+          .select()
+          .eq('ubicacion', _ubicacion!.trim());
+      setState(() {
+        _excursiones = List<Map<String, dynamic>>.from(response);
+        _loading = false;
+      });
+    } catch (e) { // Added catch block
+      print('Error fetching excursions: $e');
+      setState(() {
+        _loading = false;
+        _excursiones = []; // Clear excursions on error
+      });
+      // Optionally show a SnackBar to the user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al cargar excursiones: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -76,7 +104,7 @@ class _ExcursionTabState extends State<ExcursionTab> {
                 ? const CircularProgressIndicator()
                 : DropdownButtonFormField<String>(
                     decoration: const InputDecoration(
-                      labelText: 'Seleccione una provincia turística',
+                      labelText: 'Provincia turística',
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.all(Radius.circular(16)),
                       ),
@@ -178,15 +206,19 @@ class _ExcursionTabState extends State<ExcursionTab> {
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
-                                    ],
+                              ]),
                                   ),
-                                ),
+                                
                                 ElevatedButton(
                                   onPressed: () async {
                                     DateTime? selectedDateTime;
                                     int cantidadPersonas = 1;
                                     bool incluirGuia = false;
                                     final reservaFormKey = GlobalKey<FormState>();
+                                
+                                    // Add controllers for input fields
+                                    final nombreHostalHotelController = TextEditingController(text: excursion['hostal_hotel'] ?? '');
+                                    final direccionFisicaController = TextEditingController(text: excursion['direccion'] ?? '');
                                 
                                     await showDialog(
                                       context: context,
@@ -199,6 +231,32 @@ class _ExcursionTabState extends State<ExcursionTab> {
                                               child: Column(
                                                 mainAxisSize: MainAxisSize.min,
                                                 children: [
+                                                  // Editable Hostal/Hotel name
+                                                  TextFormField(
+                                                    controller: nombreHostalHotelController,
+                                                    decoration: const InputDecoration(
+                                                      labelText: 'Nombre del Hostal/Hotel',
+                                                      border: OutlineInputBorder(
+                                                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                                                      ),
+                                                    ),
+                                                    validator: (value) =>
+                                                        value == null || value.isEmpty ? 'Ingrese el nombre del Hostal/Hotel' : null,
+                                                  ),
+                                                  const SizedBox(height: 12),
+                                                  // Editable address
+                                                  TextFormField(
+                                                    controller: direccionFisicaController,
+                                                    decoration: const InputDecoration(
+                                                      labelText: 'Dirección',
+                                                      border: OutlineInputBorder(
+                                                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                                                      ),
+                                                    ),
+                                                    validator: (value) =>
+                                                        value == null || value.isEmpty ? 'Ingrese la dirección' : null,
+                                                  ),
+                                                  const SizedBox(height: 16),
                                                   // Fecha y hora picker
                                                   StatefulBuilder(
                                                     builder: (context, setState) {
@@ -307,26 +365,98 @@ class _ExcursionTabState extends State<ExcursionTab> {
                                           actions: [
                                             TextButton(
                                               onPressed: () {
+                                                
                                                 Navigator.of(context).pop();
                                               },
                                               child: const Text('Cancelar'),
                                             ),
                                             ElevatedButton(
-                                              onPressed: () {
+                                              onPressed: () async { // Made onPressed async
                                                 if (reservaFormKey.currentState!.validate() && selectedDateTime != null) {
-                                                  Navigator.of(context).pop();
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    SnackBar(
-                                                      content: Text(
-                                                        'Excursión reservada para ${cantidadPersonas} persona(s) el ${selectedDateTime!.day}/${selectedDateTime!.month}/${selectedDateTime!.year} a las ${selectedDateTime!.hour}:${selectedDateTime!.minute.toString().padLeft(2, '0')}${incluirGuia ? " (con guía)" : ""}.',
-                                                      ),
-                                                    ),
-                                                  );
-                                                  // Aquí puedes guardar la reserva en Supabase si lo deseas
+                                                  // Collect data
+                                                  final user = Supabase.instance.client.auth.currentUser;
+                                                  if (user == null) {
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(content: Text('Usuario no autenticado')),
+                                                      );
+                                                    }
+                                                    return; // Exit if user is not logged in
+                                                  }
+
+                                                  String direccionFisica = direccionFisicaController.text;
+                                                  String nombreHostalHotel = nombreHostalHotelController.text;
+                                                  String excursionTitulo = excursion['titulo'] ?? '';
+                                                  double basePrecio = 0;
+                                                  if (excursion['precio'] != null) {
+                                                    basePrecio = double.tryParse(excursion['precio'].toString()) ?? 0;
+                                                  }
+                                                  double totalPrecio = incluirGuia ? basePrecio + 12 : basePrecio;
+                                                  String? excursionId = excursion['id']?.toString(); // Get excursion ID
+
+                                                  if (excursionId == null) {
+                                                     if (mounted) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        const SnackBar(content: Text('Error: ID de excursión no encontrado')),
+                                                      );
+                                                    }
+                                                    return;
+                                                  }
+
+                                                  try {
+                                                    // Insert into reservas_excursiones table
+                                                    await Supabase.instance.client
+                                                        .from('reservas_excursiones')
+                                                        .insert({
+                                                          'user_id': user.id,
+                                                          'excursiones_id': excursionId, // Use the excursion ID
+                                                          'titulo': excursionTitulo,
+                                                          'precio': totalPrecio,
+                                                          'fecha_hora': selectedDateTime!.toIso8601String(), // Save as ISO 8601 string
+                                                          'cantidad_personas': cantidadPersonas,
+                                                          'incluir_guia': incluirGuia,
+                                                          'hostal_hotel': nombreHostalHotel,
+                                                          'direccion': direccionFisica,
+                                                        });
+
+                                                    // Close the dialog
+                                                    Navigator.of(context).pop();
+
+                                                    // Show success message
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        SnackBar(
+                                                          backgroundColor: Colors.green,
+                                                          content: Text(
+                                                            '¡Reserva confirmada!\n'
+                                                            'Excursión: $excursionTitulo\n'
+                                                            'Precio: \$${totalPrecio.toStringAsFixed(2)}',
+                                                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                                          ),
+                                                          duration: const Duration(seconds: 4),
+                                                        ),
+                                                      );
+                                                    }
+
+                                                  } catch (e) {
+                                                    print('Error saving reservation: $e');
+                                                     // Show error message
+                                                    if (mounted) {
+                                                      ScaffoldMessenger.of(context).showSnackBar(
+                                                        SnackBar(
+                                                          content: Text('Error al guardar la reserva: ${e.toString()}'),
+                                                          backgroundColor: Colors.red,
+                                                        ),
+                                                      );
+                                                    }
+                                                  }
+
                                                 } else if (selectedDateTime == null) {
-                                                  ScaffoldMessenger.of(context).showSnackBar(
-                                                    const SnackBar(content: Text('Seleccione fecha y hora')),
-                                                  );
+                                                  if (mounted) {
+                                                    ScaffoldMessenger.of(context).showSnackBar(
+                                                      const SnackBar(content: Text('Seleccione fecha y hora')),
+                                                    );
+                                                  }
                                                 }
                                               },
                                               child: const Text('Confirmar'),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:taxibooking/presentation/screens/excursion/excursion_tab.dart';
+import 'package:taxibooking/presentation/screens/reservas/reservas_tab.dart';
 import 'package:taxibooking/presentation/screens/taxi/taxi_tab.dart';
 import '../../../core/constants/app_colors.dart';
 import 'package:taxibooking/presentation/screens/profile/profile_screen.dart';
@@ -21,14 +22,14 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Cuba Taxi & Tours'),
         backgroundColor: AppColors.primary,
         foregroundColor: AppColors.white,
+        automaticallyImplyLeading: false,
       ),
       body: IndexedStack(
         index: _currentIndex,
         children: const [
           TaxiTab(), // <--- Aquí va la pestaña de Taxi
           ExcursionTab(),
-          Center(child: Text('Reservaciones')),
-
+          ReservasTab(),
           ProfileScreen(), // <--- Aquí va la pantalla de Perfil real
         ],
       ),

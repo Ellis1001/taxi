@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:taxibooking/data/datasources/remote/supabase_api.dart';
@@ -7,6 +8,8 @@ import 'package:taxibooking/presentation/screens/auth/register_screen.dart';
 import 'package:taxibooking/presentation/screens/excursion/excursion_tab.dart';
 import 'package:taxibooking/presentation/screens/home/home_screen.dart';
 import 'package:taxibooking/presentation/screens/profile/profile_screen.dart';
+import 'package:taxibooking/presentation/screens/reservas/reservas_tab.dart';
+import 'package:taxibooking/providers/reservation_provider.dart';
 import 'core/constants/app_colors.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
@@ -33,7 +36,9 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return ChangeNotifierProvider(
+      create: (context) => ReservationProvider(),
+      child: MaterialApp(
       title: 'Cuba Taxi & Tours',
       theme: ThemeData(
         primaryColor: AppColors.primary,
@@ -54,6 +59,7 @@ class MyApp extends StatelessWidget {
         '/register': (context) => const RegisterScreen(),
         '/profile': (context) => const ProfileScreen(), // Fixed route name
         '/excursion': (context) => const ExcursionTab(), // Fixed route name
+        '/reservas': (context) => const ReservasTab(), // Fixed route name
       },
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
@@ -65,6 +71,9 @@ class MyApp extends StatelessWidget {
         Locale('en', 'US'),
         Locale('es'),
       ],
+    ),
     );
+    
+    
   }
 }
